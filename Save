@@ -1,0 +1,119 @@
+import requests
+from requests.auth import HTTPBasicAuth
+import json
+# Jira credentials and URL
+JIRA_URL = "https://your-domain.atlassian.net"
+USERNAME = "your-email"
+API_TOKEN = "your-api-token"
+
+# Jira project key or other identifiers
+PROJECT_KEY = "PROJECT_KEY"
+
+# Authentication
+auth = HTTPBasicAuth(USERNAME, API_TOKEN)
+headers = {"Accept": "application/json", "Content-Type": "application/json"}
+
+# Test Cases for the Oncologist User Story
+test_cases = [
+    {"id": "TC01", "title": "Create Chemotherapy Plan for Lung Cancer", "description": "Create a chemotherapy plan for a lung cancer patient based on their diagnosis."},
+    {"id": "TC02", "title": "Create Chemotherapy Plan for Breast Cancer", "description": "Create a chemotherapy plan for a breast cancer patient based on their diagnosis."},
+    {"id": "TC03", "title": "Update Chemotherapy Plan Based on Response to Treatment", "description": "Update an existing chemotherapy plan according to the patient’s treatment response."},
+    {"id": "TC04", "title": "Identify Duplicate Chemotherapy Plans", "description": "Use Jira's search functionality to identify duplicate chemotherapy plans."},
+    {"id": "TC05", "title": "Link Duplicate Chemotherapy Plans", "description": "Link duplicate chemotherapy plans to the original test case."},
+    {"id": "TC06", "title": "Close Duplicate Chemotherapy Plans", "description": "Close duplicate chemotherapy plans to remove them from active test cases."}
+]
+
+# Step 1: Search for Duplicate Test Cases
+def search_test_cases(query):
+    url = f"{JIRA_URL}/rest/api/3/search"
+    payload = {
+        "jql": query,  # Use JQL to search test cases
+        "fields": ["summary", "description", "status"]
+    }
+    response = requests.post(url, headers=headers, auth=auth, json=payload)
+    return response.json()
+
+# Step 2: Identify Duplicate Test Cases by Checking Summaries or Descriptions
+def find_duplicates(test_cases):
+    summaries = {}
+    duplicates = []
+    for case in test_cases['issues']:
+        summary = case['fields']['summary']
+        if summary in summaries:
+            duplicates.append((summaries[summary], case))  # Store original and duplicate
+        else:
+            summaries[summary] = case
+    return duplicates
+
+# Step 3: Link Duplicate Test Cases
+def link_issues(original_id, duplicate_id):
+    url = f"{JIRA_URL}/rest/api/3/issueLink"
+    payload = {
+        "type": {"name": "Duplicate"},
+        "inwardIssue": {"key": original_id},
+        "outwardIssue": {"key": duplicate_id}
+    }
+    response = requests.post(url, headers=headers, auth=auth, json=payload)
+    return response.status_code
+
+# Step 4: Close Duplicate Test Cases
+def close_issue(issue_id):
+    url = f"{JIRA_URL}/rest/api/3/issue/{issue_id}/transitions"
+    payload = {"transition": {"id": "31"}}  # '31' represents the transition to 'Closed'
+    response = requests.post(url, headers=headers, auth=auth, json=payload)
+    return response.status_code
+
+# Function to Create Test Cases in Jira
+def create_test_case(title, description):
+    url = f"{JIRA_URL}/rest/api/3/issue"
+    payload = {
+        "fields": {
+            "project": {
+                "key": PROJECT_KEY
+            },
+            "summary": title,
+            "description": description,
+            "issuetype": {
+                "name": "Task"  # Use Task or Test depending on your Jira configuration
+            }
+        }
+    }
+    response = requests.post(url, headers=headers, auth=auth, json=payload)
+    return response.json()
+
+# Main function to run the automation
+def main():
+    # Step 1: Create test cases in Jira based on the user story
+    for case in test_cases:
+        response = create_test_case(case['title'], case['description'])
+        print(f"Created Test Case: {case['title']}, Response: {response}")
+    
+    # Step 2: Search for test cases related to chemotherapy plans
+    query = f'project = {PROJECT_KEY} AND summary ~ "chemotherapy"'
+    test_cases_in_jira = search_test_cases(query)
+    
+    # Step 3: Find duplicates among the test cases
+    duplicates = find_duplicates(test_cases_in_jira)
+    for original, duplicate in duplicates:
+        # Step 4: Link the duplicate to the original test case
+        link_status = link_issues(original['key'], duplicate['key'])
+        print(f"Linked {duplicate['key']} to {original['key']}, Status: {link_status}")
+        # Step 5: Close the duplicate test case
+        close_status = close_issue(duplicate['key'])
+        print(f"Closed {duplicate['key']}, Status: {close_status}")
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+                          
+
+
+
+
+
+
+
+                      
